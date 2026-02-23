@@ -168,6 +168,38 @@ button {
   color: var(--text-1);
 }
 
+/* ─── Active Toggle ─────────────────────────────── */
+.app-active-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text-3);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.app-active-toggle:hover {
+  border-color: var(--text-3);
+  color: var(--text-2);
+}
+
+.app-active-toggle.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(163, 255, 18, 0.15);
+}
+
 /* ─── Category Bar ───────────────────────────────── */
 .app-categories {
   max-width: 960px;
@@ -340,14 +372,28 @@ button {
   flex-shrink: 0;
 }
 
-.app-book-cat {
+.app-book-club {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
-  padding: 1px 7px;
+  padding: 1px 8px;
   background: var(--bg-1);
   border: 1px solid var(--border);
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
+.app-book-club.reddit {
+  border-color: rgba(255, 69, 0, 0.2);
+  color: #ff6b35;
+}
+
+.app-book-club.bookclubs {
+  border-color: rgba(129, 140, 248, 0.2);
+  color: #818cf8;
 }
 
 .app-book-date {

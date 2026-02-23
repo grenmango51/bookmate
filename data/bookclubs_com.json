@@ -1,0 +1,29 @@
+{
+  "scraped_at": "2026-02-23T12:48:22Z",
+  "source": "bookclubs.com",
+  "total_clubs": 1,
+  "total_books": 1,
+  "clubs": [
+    {
+      "club_name": "Shelf Scout",
+      "club_url": "https://bookclubs.com/join-a-book-club/club/shelf-scout",
+      "source_type": "Bookclubs.com",
+      "currently_reading": {
+        "title": "The General's Wife",
+        "author": "Suzanne Dana",
+        "book_url": "https://bookclubs.com/books/the-generals-wife-1057442"
+      }
+    }
+  ],
+  "books": [
+    {
+      "title": "The General's Wife",
+      "author": "Suzanne Dana",
+      "category": "Currently Reading",
+      "month": "February 2026",
+      "discussion_url": "https://bookclubs.com/join-a-book-club/club/shelf-scout",
+      "club_name": "Shelf Scout",
+      "source_type": "Bookclubs.com"
+    }
+  ]
+}
