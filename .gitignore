@@ -42,6 +42,15 @@ next-env.d.ts
 
 # agent tooling
 .agent/
+.agents/
+
+# debug
+*_debug.py
+
+# data
+data/*.json
+!data/enriched_books.json
+data/.*_cache*
 
 # python
 .venv/
