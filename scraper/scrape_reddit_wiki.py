@@ -17,6 +17,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -142,6 +143,26 @@ def _split_element_by_br(element) -> list[list]:
     return lines
 
 
+def categorize_by_month(month_str: str, current_time: datetime | None = None) -> str:
+    """
+    Classify a book based on the month heading.
+    If the month is the current month or the immediately preceding month,
+    return "Currently Reading". Otherwise, return "Previously Read".
+    """
+    if current_time is None:
+        current_time = datetime.now()
+    try:
+        dt = datetime.strptime(month_str.strip(), "%B %Y")
+        months_diff = (current_time.year - dt.year) * 12 + (current_time.month - dt.month)
+        
+        if 0 <= months_diff <= 1:
+            return "Currently Reading"
+        else:
+            return "Previously Read"
+    except ValueError:
+        return "Previously Read"
+
+
 def _parse_book_line(parts: list, month: str) -> dict | None:
     """
     Parse a single line of the wiki to extract book information.
@@ -176,11 +197,8 @@ def _parse_book_line(parts: list, month: str) -> dict | None:
     if link_url.startswith("/r/"):
         link_url = f"https://www.reddit.com{link_url}"
 
-    # Extract category (text before the colon)
-    category = ""
-    colon_match = re.match(r"^([^:]+):\s*", full_text)
-    if colon_match:
-        category = colon_match.group(1).strip()
+    # Extract category (originally text before the colon, now based on month)
+    category = categorize_by_month(month)
 
     # Extract author (text after "by")
     author = ""
@@ -277,7 +295,7 @@ def _regex_fallback(html: str) -> list[dict]:
             books.append({
                 "title": title.strip(),
                 "author": "",
-                "category": "",
+                "category": "Previously Read",
                 "month": "",
                 "discussion_url": url,
             })
@@ -289,7 +307,7 @@ def _regex_fallback(html: str) -> list[dict]:
             books.append({
                 "title": title.strip(),
                 "author": "",
-                "category": "",
+                "category": "Previously Read",
                 "month": "",
                 "discussion_url": url,
             })
