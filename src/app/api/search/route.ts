@@ -3,38 +3,51 @@ import fs from "fs";
 import path from "path";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-interface BookEntry {
-    title: string;
-    author: string;
-    category: string;
-    month: string;
+
+interface ClubInteraction {
+    club_name: string;
+    source_type: string;
     discussion_url: string;
-    club_name?: string;
-    source_type?: string;
+    month: string;
+    original_title: string;
 }
 
-interface RedditData {
-    scraped_at: string;
-    source: string;
-    total_books: number;
-    books: BookEntry[];
+interface EnrichedBook {
+    google_books_id?: string;
+    canonical_title: string;
+    canonical_author: string;
+    categories: string[];
+    page_count: number | null;
+    published_date: string;
+    thumbnail: string;
+    description: string;
+    clubs: ClubInteraction[];
 }
 
-interface BookclubsData {
-    scraped_at: string;
-    source: string;
-    total_books: number;
-    books: BookEntry[];
+interface EnrichedData {
+    enriched_at: string;
+    stats: {
+        total_unique_books: number;
+        total_club_interactions: number;
+        books_with_genre: number;
+        books_read_by_multiple_clubs: number;
+        all_genres: string[];
+    };
+    books: EnrichedBook[];
 }
 
 interface SearchResult {
     title: string;
     author: string;
-    category: string;
-    month: string;
-    discussion_url: string;
-    club_name: string;
-    source_type: string;
+    categories: string[];
+    page_count: number | null;
+    thumbnail: string;
+    clubs: {
+        club_name: string;
+        source_type: string;
+        discussion_url: string;
+        month: string;
+    }[];
     verified: boolean;
     relevance_score: number;
 }
@@ -112,10 +125,7 @@ function isWithinLastThreeMonths(monthStr: string): boolean {
     const year = parseInt(parts[1], 10);
     if (monthIndex === -1 || isNaN(year)) return false;
 
-    // Build date for the 1st of that month
     const bookDate = new Date(year, monthIndex, 1);
-
-    // Build cutoff: 3 months ago from the 1st of the current month
     const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1);
 
     return bookDate >= cutoff;
@@ -123,55 +133,31 @@ function isWithinLastThreeMonths(monthStr: string): boolean {
 
 // ─── Load data ──────────────────────────────────────────────────────────────
 
-let cachedBooks: BookEntry[] | null = null;
-let cachedFreshness: string | null = null;
+let cachedData: EnrichedData | null = null; // Forces dev reload 2
 
-function loadAllBooks(): { books: BookEntry[]; freshness: string | null } {
-    if (cachedBooks) return { books: cachedBooks, freshness: cachedFreshness };
+function loadEnrichedBooks(): EnrichedData {
+    if (cachedData) return cachedData;
 
-    const allBooks: BookEntry[] = [];
-    let latestFreshness: string | null = null;
-
-    // Load Reddit data
-    const redditPath = path.join(process.cwd(), "data", "reddit_books.json");
+    const filePath = path.join(process.cwd(), "data", "enriched_books.json");
     try {
-        const raw = fs.readFileSync(redditPath, "utf-8");
-        const data: RedditData = JSON.parse(raw);
-        for (const book of data.books) {
-            if (book.title === "Here is the list of authors previously read.") continue;
-            allBooks.push({
-                ...book,
-                club_name: book.club_name || "r/bookclub",
-                source_type: book.source_type || "Reddit",
-            });
-        }
-        latestFreshness = data.scraped_at;
+        const raw = fs.readFileSync(filePath, "utf-8");
+        cachedData = JSON.parse(raw) as EnrichedData;
+        return cachedData;
     } catch {
-        console.error("Failed to load reddit_books.json");
+        // Fallback: return empty data
+        console.error("Failed to load enriched_books.json");
+        return {
+            enriched_at: "",
+            stats: {
+                total_unique_books: 0,
+                total_club_interactions: 0,
+                books_with_genre: 0,
+                books_read_by_multiple_clubs: 0,
+                all_genres: [],
+            },
+            books: [],
+        };
     }
-
-    // Load Bookclubs.com data
-    const bookclubsPath = path.join(process.cwd(), "data", "bookclubs_com.json");
-    try {
-        const raw = fs.readFileSync(bookclubsPath, "utf-8");
-        const data: BookclubsData = JSON.parse(raw);
-        for (const book of data.books) {
-            allBooks.push({
-                ...book,
-                club_name: book.club_name || "Unknown Club",
-                source_type: book.source_type || "Bookclubs.com",
-            });
-        }
-        if (data.scraped_at && (!latestFreshness || data.scraped_at > latestFreshness)) {
-            latestFreshness = data.scraped_at;
-        }
-    } catch {
-        // bookclubs_com.json may not exist yet, that's fine
-    }
-
-    cachedBooks = allBooks;
-    cachedFreshness = latestFreshness;
-    return { books: allBooks, freshness: latestFreshness };
 }
 
 // ─── Search endpoint ────────────────────────────────────────────────────────
@@ -180,47 +166,77 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q")?.trim() || "";
     const activeOnly = searchParams.get("active") === "true";
+    const genreFilter = searchParams.get("genre")?.trim() || "";
 
-    let { books: allBooks, freshness } = loadAllBooks();
+    const data = loadEnrichedBooks();
+    let books = data.books;
 
-    // Apply active-only filter (last 3 months)
+    // Apply active-only filter: keep books where at least one club is active
     if (activeOnly) {
-        allBooks = allBooks.filter((b) => isWithinLastThreeMonths(b.month));
+        books = books.filter((b) =>
+            b.clubs.some((c) => isWithinLastThreeMonths(c.month))
+        );
+    }
+
+    // Apply genre filter
+    if (genreFilter) {
+        const normGenre = genreFilter.toLowerCase();
+        books = books.filter((b) =>
+            b.categories.some((cat) => cat.toLowerCase().includes(normGenre))
+        );
     }
 
     let results: SearchResult[];
 
     if (query.length < 2) {
-        // No query: return ALL books sorted alphabetically
-        results = allBooks
-            .map((book) => ({
-                title: book.title,
-                author: book.author,
-                category: book.category,
-                month: book.month,
-                discussion_url: book.discussion_url,
-                club_name: book.club_name || "r/bookclub",
-                source_type: book.source_type || "Reddit",
-                verified: true,
-                relevance_score: 50,
-            }))
-            .sort((a, b) => a.title.localeCompare(b.title));
+        // No query: return all books sorted alphabetically
+        results = books.map((book) => ({
+            title: book.canonical_title,
+            author: book.canonical_author,
+            categories: book.categories,
+            page_count: book.page_count,
+            thumbnail: book.thumbnail,
+            clubs: book.clubs.map((c) => ({
+                club_name: c.club_name,
+                source_type: c.source_type,
+                discussion_url: c.discussion_url,
+                month: c.month,
+            })),
+            verified: true,
+            relevance_score: 50,
+        }));
     } else {
-        // Query: fuzzy search across title, author, AND club_name
+        // Query: fuzzy search across title, author, and all club names
         results = [];
-        for (const book of allBooks) {
-            const score = calculateRelevance(query, book.title, book.author, book.club_name || "");
-            if (score > 20) {
+        for (const book of books) {
+            let maxScore = calculateRelevance(
+                query,
+                book.canonical_title,
+                book.canonical_author,
+                ""
+            );
+
+            // Also check if query matches any club name
+            for (const c of book.clubs) {
+                const clubScore = calculateRelevance(query, "", "", c.club_name);
+                maxScore = Math.max(maxScore, clubScore);
+            }
+
+            if (maxScore > 20) {
                 results.push({
-                    title: book.title,
-                    author: book.author,
-                    category: book.category,
-                    month: book.month,
-                    discussion_url: book.discussion_url,
-                    club_name: book.club_name || "r/bookclub",
-                    source_type: book.source_type || "Reddit",
+                    title: book.canonical_title,
+                    author: book.canonical_author,
+                    categories: book.categories,
+                    page_count: book.page_count,
+                    thumbnail: book.thumbnail,
+                    clubs: book.clubs.map((c) => ({
+                        club_name: c.club_name,
+                        source_type: c.source_type,
+                        discussion_url: c.discussion_url,
+                        month: c.month,
+                    })),
                     verified: true,
-                    relevance_score: score,
+                    relevance_score: maxScore,
                 });
             }
         }
@@ -238,9 +254,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
         query,
         total_results: results.length,
-        total_indexed: allBooks.length,
+        total_indexed: data.stats.total_unique_books,
+        all_genres: data.stats.all_genres,
         results: results.slice(0, 50),
         fallback_links,
-        data_freshness: freshness,
+        data_freshness: data.enriched_at,
     });
 }

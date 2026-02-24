@@ -7,14 +7,20 @@ import {
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+interface ClubInteraction {
+  club_name: string;
+  source_type: string;
+  discussion_url: string;
+  month: string;
+}
+
 interface SearchResult {
   title: string;
   author: string;
-  category: string;
-  month: string;
-  discussion_url: string;
-  club_name: string;
-  source_type: string;
+  categories: string[];
+  page_count: number | null;
+  thumbnail: string;
+  clubs: ClubInteraction[];
   verified: boolean;
   relevance_score: number;
 }
@@ -23,6 +29,7 @@ interface SearchResponse {
   query: string;
   total_results: number;
   total_indexed: number;
+  all_genres: string[];
   results: SearchResult[];
   fallback_links: {
     reddit_search: string;
@@ -54,15 +61,18 @@ export default function Home() {
   const [fallbackLinks, setFallbackLinks] = useState<SearchResponse["fallback_links"] | null>(null);
   const [visibleCount, setVisibleCount] = useState(40);
   const [activeOnly, setActiveOnly] = useState(false);
+  const [allGenres, setAllGenres] = useState<string[]>([]);
+  const [selectedGenre, setSelectedGenre] = useState("");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch books from API (respects activeOnly toggle)
-  const fetchBooks = useCallback(async (searchQuery: string, active: boolean) => {
+  // Fetch books from API
+  const fetchBooks = useCallback(async (searchQuery: string, active: boolean, genre: string) => {
     setVisibleCount(40);
     const params = new URLSearchParams();
     if (searchQuery.trim().length >= 2) params.set("q", searchQuery);
     if (active) params.set("active", "true");
+    if (genre) params.set("genre", genre);
     const qs = params.toString() ? `?${params.toString()}` : "";
 
     try {
@@ -73,6 +83,9 @@ export default function Home() {
       setTotalIndexed(data.total_indexed);
       setDataFreshness(data.data_freshness);
       setFallbackLinks(data.fallback_links);
+      if (data.all_genres && data.all_genres.length > 0) {
+        setAllGenres(data.all_genres);
+      }
     } catch (err) {
       console.error("Fetch failed:", err);
     } finally {
@@ -81,15 +94,15 @@ export default function Home() {
   }, []);
 
   // Load on mount
-  useEffect(() => { fetchBooks("", false); }, [fetchBooks]);
+  useEffect(() => { fetchBooks("", false, ""); }, [fetchBooks]);
 
-  // Re-fetch when activeOnly toggles
-  useEffect(() => { fetchBooks(query, activeOnly); }, [activeOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Re-fetch when activeOnly or genre toggles
+  useEffect(() => { fetchBooks(query, activeOnly, selectedGenre); }, [activeOnly, selectedGenre]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search
   const performSearch = useCallback(async (searchQuery: string) => {
-    fetchBooks(searchQuery, activeOnly);
-  }, [activeOnly, fetchBooks]);
+    fetchBooks(searchQuery, activeOnly, selectedGenre);
+  }, [activeOnly, selectedGenre, fetchBooks]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -107,11 +120,15 @@ export default function Home() {
 
   const clearSearch = () => {
     setQuery("");
-    fetchBooks("", activeOnly);
+    fetchBooks("", activeOnly, selectedGenre);
     inputRef.current?.focus();
   };
 
   const toggleActive = () => setActiveOnly((prev) => !prev);
+
+  const selectGenre = (genre: string) => {
+    setSelectedGenre(prev => prev === genre ? "" : genre);
+  };
 
   const visibleResults = filteredResults.slice(0, visibleCount);
   const hasMore = visibleCount < filteredResults.length;
@@ -163,9 +180,25 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Category pills container — kept empty for future use */}
+        {/* Genre filter pills */}
         <div className="app-categories" id="category-filters">
-          {/* Pills will be populated in a future update */}
+          {allGenres.slice(0, 12).map((genre) => (
+            <button
+              key={genre}
+              className={`app-category-pill ${selectedGenre === genre ? "active" : ""}`}
+              onClick={() => selectGenre(genre)}
+            >
+              {genre}
+            </button>
+          ))}
+          {selectedGenre && (
+            <button
+              className="app-category-pill clear"
+              onClick={() => setSelectedGenre("")}
+            >
+              <X size={11} /> Clear
+            </button>
+          )}
         </div>
       </header>
 
@@ -176,6 +209,7 @@ export default function Home() {
           <span className="app-results-count">{filteredResults.length}</span>
           <span className="app-results-label">
             {query ? "matches" : "books"}
+            {selectedGenre && ` in ${selectedGenre}`}
           </span>
         </div>
 
@@ -193,8 +227,8 @@ export default function Home() {
           <div className="app-book-list">
             {visibleResults.map((book, i) => (
               <a
-                key={`${book.title}-${book.club_name}-${i}`}
-                href={book.discussion_url}
+                key={`${book.title}-${i}`}
+                href={book.clubs && book.clubs.length > 0 ? book.clubs[0].discussion_url : "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="app-book-row"
@@ -206,19 +240,40 @@ export default function Home() {
                   </div>
                   <div className="app-book-meta">
                     {book.author && <span className="app-book-author">{book.author}</span>}
-                    {book.author && book.club_name && <span className="app-book-sep" />}
-                    {book.club_name && (
-                      <span className={`app-book-club ${book.source_type === "Reddit" ? "reddit" : "bookclubs"}`}>
-                        {book.source_type === "Reddit" ? <RedditIcon size={11} /> : <Users size={11} />}
-                        {book.club_name}
+                    {book.author && book.clubs?.length > 0 && <span className="app-book-sep" />}
+
+                    {book.clubs?.length === 1 && (
+                      <span className={`app-book-club ${book.clubs[0].source_type === "Reddit" ? "reddit" : "bookclubs"}`}>
+                        {book.clubs[0].source_type === "Reddit" ? <RedditIcon size={11} /> : <Users size={11} />}
+                        {book.clubs[0].club_name}
                       </span>
                     )}
-                    {book.month && book.month !== "Unknown" && (
+
+                    {book.clubs?.length > 1 && (
+                      <span
+                        className="app-book-club bookclubs multi"
+                        title={`Read by:\n${book.clubs.map(c => `• ${c.club_name}`).join('\n')}`}
+                      >
+                        <Users size={11} />
+                        Read by {book.clubs.length} clubs
+                      </span>
+                    )}
+
+                    {book.categories?.length > 0 && (
+                      <>
+                        <span className="app-book-sep" />
+                        <span className="app-book-genre">
+                          {book.categories[0]}
+                        </span>
+                      </>
+                    )}
+
+                    {book.clubs?.length === 1 && book.clubs[0].month && book.clubs[0].month !== "Unknown" && (
                       <>
                         <span className="app-book-sep" />
                         <span className="app-book-date">
                           <Calendar size={11} />
-                          {book.month}
+                          {book.clubs[0].month}
                         </span>
                       </>
                     )}

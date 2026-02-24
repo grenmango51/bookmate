@@ -200,6 +200,57 @@ button {
   box-shadow: 0 0 12px rgba(163, 255, 18, 0.15);
 }
 
+/* ─── Genre Filter Pills ───────────────────────── */
+.app-categories {
+  display: flex;
+  gap: 6px;
+  padding: 0 20px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.app-category-pill {
+  padding: 4px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text-3);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.app-category-pill:hover {
+  border-color: var(--text-3);
+  color: var(--text-2);
+}
+
+.app-category-pill.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.app-category-pill.clear {
+  color: var(--text-3);
+  border-color: rgba(255, 100, 100, 0.3);
+}
+
+.app-category-pill.clear:hover {
+  color: #ff6666;
+  border-color: #ff6666;
+}
+
 /* ─── Category Bar ───────────────────────────────── */
 .app-categories {
   max-width: 960px;
@@ -402,6 +453,26 @@ button {
   gap: 4px;
   white-space: nowrap;
   font-weight: 300;
+}
+
+.app-book-genre {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 0.63rem;
+  font-weight: 500;
+  color: var(--text-3);
+  padding: 1px 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  letter-spacing: 0.02em;
+}
+
+.app-book-club.multi {
+  border-color: rgba(163, 255, 18, 0.15);
+  color: var(--accent);
+  cursor: help;
 }
 
 /* Arrow */
